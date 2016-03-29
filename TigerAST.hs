@@ -30,8 +30,9 @@ data Dec = FunctionDec [FunDec]
          | VarDec Symbol (Maybe (Symbol, SourcePos)) Exp SourcePos
          | TypeDec [(Symbol, Ty, SourcePos)]
 
-data Ty = NameTy Symbol SourcePos
-        | RecordTy [Field]
+data Ty = NameTy Symbol SourcePos -- names of types, int and string are pre-defined names
+        | RecordTy Int -- UID 
+                   [Field]
         | ArrayTy Symbol SourcePos
 
 data Oper = PlusOp | MinusOp | TimesOp | DivideOp
@@ -40,4 +41,42 @@ data Oper = PlusOp | MinusOp | TimesOp | DivideOp
 type Field = (Symbol,Symbol,SourcePos)
 type FunDec = (Symbol, [Field], Maybe (Symbol, SourcePos), Exp, SourcePos)
 
+-- parsing mess
+
+spacey :: Parser ()
+spacey = L.space (spaceChar >> return ()) (L.skipLineComment "//") (L.skipBlockComment "/*" "*/")
+lexeme = L.lexeme spacey
+symbol = L.symbol spacey
+braces = lexeme . between (string "{") (string "}")
+brackets = lexeme . between (string "[") (string "]")
+parens = lexeme . between (string "(") (string ")")
+comma = symbol ","
+commaSep = (flip sepBy1) comma
+
+ident = do 
+  s <- lowerChar 
+  ds <- some (char '_' <|> digitChar <|> letterChar)
+  return $ s : ds -- need to add a check that these aren't reserved words
+
+parseDecl = parseFunDec <|> parseVarDec <|> parseTyDec
+
+parseTypeA = undefined
+  
+parseVarDec = do
+  symbol "var"
+  id <- ident
+  ty <- option Nothing parseTypeA
+  symbol ":="
+  e <- parseExp
+  p <- getPosition
+  return $ VerDec id ty e p
+
+parseTyDec' = do
+  symbol "type"
+  n <- ident
+  symbol "="
+  t <- parseTy
+  p <- getPosition
+  return $ (n,t,p)
+parseTyDec = TypeDec `fmap` (many parseTyDec')
 
